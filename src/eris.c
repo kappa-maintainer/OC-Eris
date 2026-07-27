@@ -25,6 +25,7 @@ THE SOFTWARE.
 
 /* Standard library headers. */
 #include <assert.h>
+#include <limits.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -122,6 +123,10 @@ static const lua_Unsigned kMaxComplexity = 10000;
 #define eris_newLclosure luaF_newLclosure
 #define eris_initupvals luaF_initupvals
 #define eris_findupval luaF_findupval
+#define eris_newtbcupval luaF_newtbcupval
+/* Maximum distance that a single to-be-closed list link can express. Kept
+ * private to lfunc.c upstream, so we have to mirror the definition here. */
+#define ERIS_MAXDELTA USHRT_MAX
 /* lmem.h */
 #define eris_reallocvector luaM_reallocvector
 /* lobject.h */
@@ -309,6 +314,13 @@ static const char *const kSettingMaxComplexity = "maxrec";
 /* Header we prefix to persisted data for a quick check when unpersisting. */
 static char const kHeader[] = { 'E', 'R', 'I', 'S' };
 #define HEADER_LENGTH sizeof(kHeader)
+
+/* Version of the serialized data layout. Bumped when the layout changes in a
+ * way that older or newer releases cannot read. Version 1 adds the list of
+ * to-be-closed variables to persisted threads. Releases before this marker
+ * existed wrote no such byte, hence their data is rejected by the type-size
+ * checks that follow it or, failing that, here. */
+#define ERIS_FORMAT_VERSION 1
 
 /* Floating point number used to check compatibility of loaded data. */
 static const lua_Number kHeaderNumber = (lua_Number)-1.234567890;
@@ -1733,10 +1745,33 @@ u_closure(Info *info) {                                                /* ... */
 
 /** ======================================================================== */
 
+/*
+** Returns the n-th entry of a thread's to-be-closed variable list, counting
+** from its head (the entry closest to the top of the stack), or NULL if there
+** are fewer than n + 1 entries. Dummy nodes, which only exist to bridge gaps
+** larger than what a single 'delta' can express, are skipped; they are
+** recreated by luaF_newtbcupval when the list is rebuilt.
+*/
+static StkId
+nth_tbc(lua_State *thread, size_t n) {
+  StkId tbc = thread->tbclist.p;
+  while (tbc > thread->stack.p) {
+    if (n-- == 0) {
+      return tbc;
+    }
+    tbc -= tbc->tbclist.delta;
+    while (tbc > thread->stack.p && tbc->tbclist.delta == 0) {
+      tbc -= ERIS_MAXDELTA;  /* skip dummy nodes */
+    }
+  }
+  return NULL;
+}
+
 static void
 p_thread(Info *info) {                                          /* ... thread */
   lua_State* thread = lua_tothread(info->L, -1);
   size_t level = 0, total = thread->top.p - thread->stack.p;
+  size_t ntbc = 0;
   CallInfo *ci;
   UpVal *uv;
 
@@ -1883,6 +1918,27 @@ p_thread(Info *info) {                                          /* ... thread */
   }
   WRITE_VALUE(0, size_t);
   lua_pop(info->L, 1);                                          /* ... thread */
+  poppath(info);
+
+  /* Write the list of to-be-closed variables. These live in the thread's stack
+   * slots and are linked through the 'delta' field of StackValue, which shares
+   * storage with the slot's TValue and is therefore not preserved when values
+   * are copied around. So we store the stack level of each entry and rebuild
+   * the list when unpersisting. Levels are written in increasing order, which
+   * is what luaF_newtbcupval expects, and incremented by one so that zero can
+   * terminate the list. */
+  pushpath(info, ".tbclist");
+  while (nth_tbc(thread, ntbc) != NULL) {
+    ++ntbc;
+  }
+  for (level = 0; level < ntbc; ++level) {
+    StkId tbc = nth_tbc(thread, ntbc - level - 1);
+    eris_assert(tbc != NULL);
+    pushpath(info, "[%d]", (int)level);
+    WRITE_VALUE(eris_savestackidx(thread, tbc) + 1, size_t);
+    poppath(info);
+  }
+  WRITE_VALUE(0, size_t);
   poppath(info);
 }
 
@@ -2128,6 +2184,37 @@ u_thread(Info *info) {                                                 /* ... */
     /* Store open upvalue in table for future references. */
     LOCK(thread);
     lua_pop(info->L, 1);                                        /* ... thread */
+    poppath(info);
+    UNLOCK(thread);
+  }
+  poppath(info);
+
+  /* Rebuild the list of to-be-closed variables. See comment in p_thread. The
+   * levels arrive in increasing order, which is what eris_newtbcupval needs;
+   * it also takes care of inserting dummy nodes for large gaps. */
+  LOCK(thread);
+  pushpath(info, ".tbclist");
+  UNLOCK(thread);
+  level = 0;
+  for (;;) {
+    StkId stk;
+    const size_t offset = READ_VALUE(size_t);
+    if (offset == 0) {
+      break;
+    }
+    LOCK(thread);
+    pushpath(info, "[%d]", level++);
+    UNLOCK(thread);
+    stk = eris_restorestackidx(thread, offset - 1);
+    validate(stk, thread->top.p - 1);
+    if (stk <= thread->tbclist.p) {
+      /* Not strictly increasing, so the data cannot describe a valid list. */
+      eris_error(info, ERIS_ERR_THREADCI);
+    }
+    LOCK(thread);
+    eris_newtbcupval(thread, stk);
+    UNLOCK(thread);
+    LOCK(thread);
     poppath(info);
     UNLOCK(thread);
   }
@@ -2443,6 +2530,7 @@ reader(lua_State *L, void *ud, size_t *sz) {
 static void
 p_header(Info *info) {
   WRITE_RAW(kHeader, HEADER_LENGTH);
+  WRITE_VALUE(ERIS_FORMAT_VERSION, uint8_t);
   WRITE_VALUE(sizeof(lua_Number), uint8_t);
   WRITE_VALUE(kHeaderNumber, lua_Number);
   WRITE_VALUE(sizeof(lua_Integer), uint8_t);
@@ -2457,6 +2545,9 @@ u_header(Info *info) {
   READ_RAW(header, HEADER_LENGTH);
   if (strncmp(kHeader, header, HEADER_LENGTH)) {
     luaL_error(info->L, "invalid data");
+  }
+  if (READ_VALUE(uint8_t) != ERIS_FORMAT_VERSION) {
+    luaL_error(info->L, "incompatible data format version");
   }
   number_size = READ_VALUE(uint8_t);
   if (number_size == 0) {

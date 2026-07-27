@@ -516,6 +516,30 @@ print(select(2, coroutine.resume(lifethr)))
 
 rootobj.testlife = lifethr
 --]]
+
+-------------------------------------------------------------------------------
+-- To-be-closed variables. These live in the thread's stack slots and are
+-- linked through a field that shares storage with the slot's value, so the
+-- list has to be rebuilt explicitly on the other side of a round trip.
+-- [[
+local function tbcfunc()
+  local log = {}
+  do
+    local guard <close> = setmetatable({}, {
+      __close = function() log[#log + 1] = "closed" end
+    })
+    coroutine.yield()
+    log[#log + 1] = "body"
+  end
+  return table.concat(log, ",")
+end
+
+local tbcthr = coroutine.create(tbcfunc)
+coroutine.resume(tbcthr)
+
+rootobj.testtbcthr = tbcthr
+--]]
+
 -------------------------------------------------------------------------------
 -- Do actual persisting with some perms.
 

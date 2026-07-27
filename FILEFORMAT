@@ -17,6 +17,10 @@ struct PersistedData {
 
 struct Header {
     char header[4] = "ERIS";   /* Header signature for rudimentary validation */
+    uint8_t format_version; /* Layout version; data from other versions is
+                             * rejected, since the layout follows Lua's
+                             * internal structures. Absent before this field
+                             * was introduced. */
     uint8_t sizeof_number;  /* sizeof(lua_Number) to check type compatibility */
     lua_Number test;    /* -1.234567890 to check representation compatibility */
     uint8_t sizeof_int; /* sizeof(int) in persisted data */
@@ -201,6 +205,8 @@ struct Thread {
     }
 
     OpenUpval openupvals[]; /* Upvalues to open */
+
+    TbcVar tbclist[];   /* To-be-closed variables, in increasing stack order */
 };
 
 struct CallInfo {
@@ -228,6 +234,10 @@ struct CallInfo {
 struct OpenUpval {
     size_t idx;         /* stack index of the value + 1; 0 if end of list */
     Object upval;       /* The upvalue */
+};
+
+struct TbcVar {
+    size_t idx;         /* stack index of the variable + 1; 0 if end of list */
 };
 
 struct PermKey {
