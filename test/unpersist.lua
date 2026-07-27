@@ -11,6 +11,21 @@ function testuvinthread(func)
   return success and result == 5
 end
 
+function testvararg(func)
+  local n, sum = func(1, 2, 3, 4)
+  return n == 4 and sum == 10
+end
+
+function testvarargthr(thr)
+  local success, result = coroutine.resume(thr)
+  return success and result == 15
+end
+
+function testtbcthr(thr)
+  local success, result = coroutine.resume(thr)
+  return success and result == "body,closed"
+end
+
 function test(rootobj)
   local passed = 0
   local total = 0
@@ -59,6 +74,9 @@ function test(rootobj)
   dotest("Yielded metafunc       ", coroutine.resume(rootobj.testymtthr) == true, true)
   dotest("Deep callstack         ", rootobj.testdeep() == 100)
   dotest("Tail call              ", rootobj.testtail() == 100)
+  dotest("Vararg function        ", testvararg(rootobj.testvararg))
+  dotest("Vararg in thread       ", testvarargthr(rootobj.testvarargthr))
+  dotest("To-be-closed variable  ", testtbcthr(rootobj.testtbcthr))
 
   print()
   if passed == total then

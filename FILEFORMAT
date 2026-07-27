@@ -17,6 +17,10 @@ struct PersistedData {
 
 struct Header {
     char header[4] = "ERIS";   /* Header signature for rudimentary validation */
+    uint8_t format_version; /* Layout version; data from other versions is
+                             * rejected, since the layout follows Lua's
+                             * internal structures. Absent before this field
+                             * was introduced for Lua 5.5. */
     uint8_t sizeof_number;  /* sizeof(lua_Number) to check type compatibility */
     lua_Number test;    /* -1.234567890 to check representation compatibility */
     uint8_t sizeof_int; /* sizeof(int) in persisted data */
@@ -145,7 +149,9 @@ struct Proto {
     int linedefined;    /* Start of line range */
     int lastlinedefined;    /* End of line range */
     uint8_t numparams;  /* Number of parameters taken */
-    uint8_t is_vararg;  /* 1 if function accepts varargs, 0 otherwise */
+    uint8_t flag;       /* Proto flags; PF_VAHID and PF_VATAB describe how the
+                         * function accepts varargs. PF_FIXED is cleared when
+                         * reading, since it only describes runtime storage. */
     uint8_t maxstacksize;   /* Size of stack reserved for the function */
 
     int sizecode;       /* Number of instructions in code */
@@ -201,13 +207,20 @@ struct Thread {
     }
 
     OpenUpval openupvals[]; /* Upvalues to open */
+
+    TbcVar tbclist[];   /* To-be-closed variables, in increasing stack order */
+};
+
+struct TbcVar {
+    size_t idx;         /* stack index of the variable + 1; 0 if end of list */
 };
 
 struct CallInfo {
     size_t func;        /* func = ci->func - thread->stack */
     size_t top;         /* top = ci->top - thread->stack */
-    int16_t nresults;   /* expected number of results from this function */
-    uint8_t callstatus;
+    uint32_t callstatus;    /* Call status bits. Since Lua 5.5 the expected
+                             * number of results is encoded in the low 8 bits
+                             * (CIST_NRESULTS), so no separate field is kept. */
     if (callstatus & CIST_YPCALL) {
         size_t extra;   /* the stack level of the function being pcalled */
     }

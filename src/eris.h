@@ -27,9 +27,9 @@ THE SOFTWARE.
 #define ERIS_H
 
 #define ERIS_VERSION_MAJOR  "1"
-#define ERIS_VERSION_MINOR  "1"
-#define ERIS_VERSION_NUM    101
-#define ERIS_VERSION_RELEASE  "3"
+#define ERIS_VERSION_MINOR  "2"
+#define ERIS_VERSION_NUM    102
+#define ERIS_VERSION_RELEASE  "0"
 
 /*
 ** ==================================================================

@@ -25,6 +25,7 @@ THE SOFTWARE.
 
 /* Standard library headers. */
 #include <assert.h>
+#include <limits.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -122,6 +123,10 @@ static const lua_Unsigned kMaxComplexity = 10000;
 #define eris_newLclosure luaF_newLclosure
 #define eris_initupvals luaF_initupvals
 #define eris_findupval luaF_findupval
+#define eris_newtbcupval luaF_newtbcupval
+/* Maximum distance that a single to-be-closed list link can express. Kept
+ * private to lfunc.c upstream, so we have to mirror the definition here. */
+#define ERIS_MAXDELTA USHRT_MAX
 /* lmem.h */
 #define eris_reallocvector luaM_reallocvector
 /* lobject.h */
@@ -309,6 +314,13 @@ static const char *const kSettingMaxComplexity = "maxrec";
 /* Header we prefix to persisted data for a quick check when unpersisting. */
 static char const kHeader[] = { 'E', 'R', 'I', 'S' };
 #define HEADER_LENGTH sizeof(kHeader)
+
+/* Version of the serialized data layout. The layout depends on Lua's internal
+ * structures, which changed with Lua 5.5 (Proto flags, CallInfo status and the
+ * to-be-closed variable list), so data written by earlier versions cannot be
+ * read back. Older releases wrote no such marker, hence data from those is
+ * rejected by the type-size checks that follow it or, failing that, here. */
+#define ERIS_FORMAT_VERSION 2
 
 /* Floating point number used to check compatibility of loaded data. */
 static const lua_Number kHeaderNumber = (lua_Number)-1.234567890;
@@ -1222,7 +1234,7 @@ p_proto(Info *info) {                                            /* ... proto */
   WRITE_VALUE(p->linedefined, int);
   WRITE_VALUE(p->lastlinedefined, int);
   WRITE_VALUE(p->numparams, uint8_t);
-  WRITE_VALUE(p->is_vararg, uint8_t);
+  WRITE_VALUE(p->flag, uint8_t);
   WRITE_VALUE(p->maxstacksize, uint8_t);
 
   /* Write byte code. */
@@ -1329,7 +1341,9 @@ u_proto(Info *info) {                                            /* ... proto */
   p->linedefined = READ_VALUE(int);
   p->lastlinedefined = READ_VALUE(int);
   p->numparams = READ_VALUE(uint8_t);
-  p->is_vararg = READ_VALUE(uint8_t);
+  /* Clear PF_FIXED: it describes where this prototype's parts are stored in
+   * memory at runtime, which never applies to a prototype we just read. */
+  p->flag = READ_VALUE(uint8_t) & cast_byte(~PF_FIXED);
   p->maxstacksize = READ_VALUE(uint8_t);
 
   /* Read byte code. */
@@ -1733,10 +1747,33 @@ u_closure(Info *info) {                                                /* ... */
 
 /** ======================================================================== */
 
+/*
+** Returns the n-th entry of a thread's to-be-closed variable list, counting
+** from its head (the entry closest to the top of the stack), or NULL if there
+** are fewer than n + 1 entries. Dummy nodes, which only exist to bridge gaps
+** larger than what a single 'delta' can express, are skipped; they are
+** recreated by luaF_newtbcupval when the list is rebuilt.
+*/
+static StkId
+nth_tbc(lua_State *thread, size_t n) {
+  StkId tbc = thread->tbclist.p;
+  while (tbc > thread->stack.p) {
+    if (n-- == 0) {
+      return tbc;
+    }
+    tbc -= tbc->tbclist.delta;
+    while (tbc > thread->stack.p && tbc->tbclist.delta == 0) {
+      tbc -= ERIS_MAXDELTA;  /* skip dummy nodes */
+    }
+  }
+  return NULL;
+}
+
 static void
 p_thread(Info *info) {                                          /* ... thread */
   lua_State* thread = lua_tothread(info->L, -1);
   size_t level = 0, total = thread->top.p - thread->stack.p;
+  size_t ntbc = 0;
   CallInfo *ci;
   UpVal *uv;
 
@@ -1814,15 +1851,15 @@ p_thread(Info *info) {                                          /* ... thread */
     pushpath(info, "[%d]", level++);
     WRITE_VALUE(eris_savestackidx(thread, ci->func.p), size_t);
     WRITE_VALUE(eris_savestackidx(thread, ci->top.p), size_t);
-    WRITE_VALUE(ci->nresults, int16_t);
-    WRITE_VALUE(ci->callstatus, uint8_t);
+    /* Since 5.5 the expected number of results is encoded in the low bits of
+     * 'callstatus', so writing the full status covers it. Transfer info is no
+     * longer kept per CallInfo; it lives in lua_State and only matters for
+     * call/return hooks, which are not persisted anyway. */
+    WRITE_VALUE(ci->callstatus, uint32_t);
 
     if (ci->callstatus & CIST_YPCALL) {
       WRITE_VALUE(eris_savestackidx(thread,
         eris_restorestack(thread, ci->u2.funcidx)), int);
-    } else if (ci->callstatus & CIST_TRAN) {
-      WRITE_VALUE(ci->u2.transferinfo.ftransfer, uint16_t);
-      WRITE_VALUE(ci->u2.transferinfo.ntransfer, uint16_t);
     }
 
     eris_assert(eris_isLua(ci) || (ci->callstatus & CIST_TAIL) == 0);
@@ -1883,6 +1920,27 @@ p_thread(Info *info) {                                          /* ... thread */
   }
   WRITE_VALUE(0, size_t);
   lua_pop(info->L, 1);                                          /* ... thread */
+  poppath(info);
+
+  /* Write the list of to-be-closed variables. These live in the thread's stack
+   * slots and are linked through the 'delta' field of StackValue, which shares
+   * storage with the slot's TValue and is therefore not preserved when values
+   * are copied around. So we store the stack level of each entry and rebuild
+   * the list when unpersisting. Levels are written in increasing order, which
+   * is what luaF_newtbcupval expects, and incremented by one so that zero can
+   * terminate the list. */
+  pushpath(info, ".tbclist");
+  while (nth_tbc(thread, ntbc) != NULL) {
+    ++ntbc;
+  }
+  for (level = 0; level < ntbc; ++level) {
+    StkId tbc = nth_tbc(thread, ntbc - level - 1);
+    eris_assert(tbc != NULL);
+    pushpath(info, "[%d]", (int)level);
+    WRITE_VALUE(eris_savestackidx(thread, tbc) + 1, size_t);
+    poppath(info);
+  }
+  WRITE_VALUE(0, size_t);
   poppath(info);
 }
 
@@ -1985,8 +2043,7 @@ u_thread(Info *info) {                                                 /* ... */
     validate(thread->ci->func.p, thread->top.p - 1);
     thread->ci->top.p = eris_restorestackidx(thread, READ_VALUE(size_t));
     validate(thread->ci->top.p, thread->stack_last.p);
-    thread->ci->nresults = READ_VALUE(int16_t);
-    thread->ci->callstatus = READ_VALUE(uint8_t);
+    thread->ci->callstatus = READ_VALUE(uint32_t);
 
     /** See comment in p_thread. */
     if (thread->ci->callstatus & CIST_YPCALL) {
@@ -1997,9 +2054,6 @@ u_thread(Info *info) {                                                 /* ... */
       if (eris_ttype(s2v(o)) != LUA_TFUNCTION) {
         eris_error(info, ERIS_ERR_THREADCI);
       }
-    } else if (thread->ci->callstatus & CIST_TRAN) {
-      thread->ci->u2.transferinfo.ftransfer = READ_VALUE(uint16_t);
-      thread->ci->u2.transferinfo.ntransfer = READ_VALUE(uint16_t);
     }
 
     if (eris_isLua(thread->ci)) {
@@ -2128,6 +2182,37 @@ u_thread(Info *info) {                                                 /* ... */
     /* Store open upvalue in table for future references. */
     LOCK(thread);
     lua_pop(info->L, 1);                                        /* ... thread */
+    poppath(info);
+    UNLOCK(thread);
+  }
+  poppath(info);
+
+  /* Rebuild the list of to-be-closed variables. See comment in p_thread. The
+   * levels arrive in increasing order, which is what eris_newtbcupval needs;
+   * it also takes care of inserting dummy nodes for large gaps. */
+  LOCK(thread);
+  pushpath(info, ".tbclist");
+  UNLOCK(thread);
+  level = 0;
+  for (;;) {
+    StkId stk;
+    const size_t offset = READ_VALUE(size_t);
+    if (offset == 0) {
+      break;
+    }
+    LOCK(thread);
+    pushpath(info, "[%d]", level++);
+    UNLOCK(thread);
+    stk = eris_restorestackidx(thread, offset - 1);
+    validate(stk, thread->top.p - 1);
+    if (stk <= thread->tbclist.p) {
+      /* Not strictly increasing, so the data cannot describe a valid list. */
+      eris_error(info, ERIS_ERR_THREADCI);
+    }
+    LOCK(thread);
+    eris_newtbcupval(thread, stk);
+    UNLOCK(thread);
+    LOCK(thread);
     poppath(info);
     UNLOCK(thread);
   }
@@ -2443,6 +2528,7 @@ reader(lua_State *L, void *ud, size_t *sz) {
 static void
 p_header(Info *info) {
   WRITE_RAW(kHeader, HEADER_LENGTH);
+  WRITE_VALUE(ERIS_FORMAT_VERSION, uint8_t);
   WRITE_VALUE(sizeof(lua_Number), uint8_t);
   WRITE_VALUE(kHeaderNumber, lua_Number);
   WRITE_VALUE(sizeof(lua_Integer), uint8_t);
@@ -2457,6 +2543,9 @@ u_header(Info *info) {
   READ_RAW(header, HEADER_LENGTH);
   if (strncmp(kHeader, header, HEADER_LENGTH)) {
     luaL_error(info->L, "invalid data");
+  }
+  if (READ_VALUE(uint8_t) != ERIS_FORMAT_VERSION) {
+    luaL_error(info->L, "incompatible data format version");
   }
   number_size = READ_VALUE(uint8_t);
   if (number_size == 0) {

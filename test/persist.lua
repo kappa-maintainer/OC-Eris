@@ -517,6 +517,60 @@ print(select(2, coroutine.resume(lifethr)))
 rootobj.testlife = lifethr
 --]]
 -------------------------------------------------------------------------------
+-- Vararg functions. Lua 5.5 encodes vararg information in Proto.flag, using
+-- either hidden arguments or a vararg table, so cover a plain vararg function
+-- as well as one that keeps its varargs alive across a yield.
+-- [[
+local function varargsum(...)
+  local n = select("#", ...)
+  local sum = 0
+  for i = 1, n do
+    sum = sum + select(i, ...)
+  end
+  return n, sum
+end
+
+rootobj.testvararg = varargsum
+
+local function varargtabfunc(...)
+  local packed = {...}
+  coroutine.yield()
+  local sum = 0
+  for i = 1, #packed do
+    sum = sum + packed[i]
+  end
+  return select("#", ...) + sum
+end
+
+local varargthr = coroutine.create(varargtabfunc)
+coroutine.resume(varargthr, 3, 4, 5)
+
+rootobj.testvarargthr = varargthr
+--]]
+
+-------------------------------------------------------------------------------
+-- To-be-closed variables. A thread that yields while a tbc variable is in
+-- scope has CIST_TBC set on the frame, which must survive a round trip.
+-- [[
+local function tbcfunc()
+  local log = {}
+  do
+    local guard <close> = setmetatable({}, {
+      __close = function() log[#log + 1] = "closed" end
+    })
+    coroutine.yield()
+    log[#log + 1] = "body"
+  end
+  return table.concat(log, ",")
+end
+
+local tbcthr = coroutine.create(tbcfunc)
+coroutine.resume(tbcthr)
+
+rootobj.testtbcthr = tbcthr
+--]]
+
+-------------------------------------------------------------------------------
 -- Do actual persisting with some perms.
 
 eris.settings("path", true)
