@@ -350,7 +350,7 @@ registerobject(Info *info) {                          /* perms reftbl ... obj */
 static void
 pushtstring(lua_State* L, TString *ts) {                               /* ... */
   if (ts) {
-    eris_setsvalue2n(L, L->top.p, ts);
+    eris_setsvalue2n(L, s2v(L->top.p), ts);
     api_incr_top(L);                                              /* ... str */
   }
   else {
@@ -1234,7 +1234,7 @@ p_proto(Info *info) {                                            /* ... proto */
   pushpath(info, ".constants");
   for (i = 0; i < p->sizek; ++i) {
     pushpath(info, "[%d]", i);
-    eris_setobj(info->L, info->L->top.p++, &p->k[i]);      /* ... lcl proto obj */
+    eris_setobj(info->L, s2v(info->L->top.p++), &p->k[i]);      /* ... lcl proto obj */
     persist(info);                                       /* ... lcl proto obj */
     lua_pop(info->L, 1);                                     /* ... lcl proto */
     poppath(info);
@@ -1348,7 +1348,7 @@ u_proto(Info *info) {                                            /* ... proto */
   for (i = 0, n = p->sizek; i < n; ++i) {
     pushpath(info, "[%d]", i);
     unpersist(info);                                         /* ... proto obj */
-    eris_setobj(info->L, &p->k[i], info->L->top.p - 1);
+    eris_setobj(info->L, &p->k[i], s2v(info->L->top.p - 1));
     lua_pop(info->L, 1);                                         /* ... proto */
     poppath(info);
   }
@@ -1616,7 +1616,7 @@ u_closure(Info *info) {                                                /* ... */
 
     /* Create closure and anchor it on the stack (avoid collection via GC). */
     cl = eris_newLclosure(info->L, nups);
-    eris_setclLvalue(info->L, info->L->top.p, cl);                   /* ... lcl */
+    eris_setclLvalue(info->L, s2v(info->L->top.p), cl);                   /* ... lcl */
     api_incr_top(info->L);
 
     /* Preregister closure for handling of cycles (upvalues). */
@@ -1686,7 +1686,7 @@ u_closure(Info *info) {                                                /* ... */
          * even if we re-used one - if we had a cycle, it might have been
          * incorrectly initialized to nil before (or rather, not yet set). */
         lua_rawgeti(info->L, -1, UVTVAL);                  /* ... lcl tbl obj */
-        eris_setobj(info->L, &(*uv)->u.value, info->L->top.p - 1);
+        eris_setobj(info->L, &(*uv)->u.value, s2v(info->L->top.p - 1));
         lua_pop(info->L, 1);                                   /* ... lcl tbl */
 
         lua_pushinteger(info->L, nup);                     /* ... lcl tbl nup */
@@ -1766,7 +1766,7 @@ p_thread(Info *info) {                                          /* ... thread */
    */
   for (; level < total; ++level) {
     pushpath(info, "[%d]", level);
-    eris_setobj(info->L, info->L->top.p - 1, thread->stack.p + level);
+    eris_setobj(info->L, s2v(info->L->top.p - 1), s2v(thread->stack.p + level));
                                                             /* ... thread obj */
     persist(info);                                          /* ... thread obj */
     poppath(info);
@@ -1876,7 +1876,7 @@ p_thread(Info *info) {                                          /* ... thread */
     pushpath(info, "[%d]", level++);
     // TODO Lua 5.4 is the StkId cast correct?
     WRITE_VALUE(eris_savestackidx(thread, ((StkId) uv->v.p)) + 1, size_t);
-    eris_setobj(info->L, info->L->top.p - 1, uv->v.p);          /* ... thread obj */
+    eris_setobj(info->L, s2v(info->L->top.p - 1), uv->v.p);          /* ... thread obj */
     lua_pushlightuserdata(info->L, uv);                  /* ... thread obj id */
     persist_keyed(info, LUA_TUPVAL);                        /* ... thread obj */
     poppath(info);
@@ -1931,7 +1931,7 @@ u_thread(Info *info) {                                                 /* ... */
     pushpath(info, "[%d]", level++);
     unpersist(info);                                        /* ... thread obj */
     UNLOCK(thread);
-    eris_setobj(thread, o, info->L->top.p - 1);
+    eris_setobj(thread, s2v(o), s2v(info->L->top.p - 1));
     lua_pop(info->L, 1);                                        /* ... thread */
     LOCK(thread);
     poppath(info);

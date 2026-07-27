@@ -78,6 +78,12 @@ $(TESTP_T): $(LUA_A) $(TESTP_O)
 $(TESTUP_T): $(LUA_A) $(TESTUP_O)
 	$(CC) -o $@ $(LDFLAGS) $(TESTUP_O) $(LUA_A) $(LIBS)
 
+$(TESTP_O): ../test/persist.c lua.h lualib.h lauxlib.h
+	$(CC) $(CFLAGS) -c -o $@ $< -I.
+
+$(TESTUP_O): ../test/unpersist.c lua.h lualib.h lauxlib.h
+	$(CC) $(CFLAGS) -c -o $@ $< -I.
+
 test:
 	./$(LUA_T) -v
 
