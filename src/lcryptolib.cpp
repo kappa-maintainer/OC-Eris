@@ -1,6 +1,5 @@
 #define LUA_LIB
 
-#include <random> // uniform_int_distribution
 #include <sstream>
 
 #include "lua.h"
@@ -17,7 +16,6 @@
 #include "vendor/Soup/soup/crc32c.hpp"
 #include "vendor/Soup/soup/Curve25519.hpp"
 #include "vendor/Soup/soup/deflate.hpp"
-#include "vendor/Soup/soup/HardwareRng.hpp"
 #include "vendor/Soup/soup/lzf.hpp"
 #include "vendor/Soup/soup/md5.hpp"
 #include "vendor/Soup/soup/ripemd160.hpp"
@@ -351,36 +349,6 @@ static int l_hmac (lua_State *L) {
 }
 
 
-static int random(lua_State *L) {
-  lua_Integer low;
-  lua_Integer up = 0;
-  switch (lua_gettop(L)) {
-    case 0: {
-      break;
-    }
-    case 1: {
-      low = 1;
-      up = luaL_checkinteger(L, 1);
-      break;
-    }
-    case 2: {
-      low = luaL_checkinteger(L, 1);
-      up = luaL_checkinteger(L, 2);
-      break;
-    }
-    default: luaL_error(L, "wrong number of arguments");
-  }
-  if (up == 0) {
-    lua_pushinteger(L, static_cast<lua_Integer>(soup::FastHardwareRng::generate64()));
-  }
-  else {
-    luaL_argcheck(L, low <= up, 1, "interval is empty");
-    soup::FastHardwareRng rng;
-    std::uniform_int_distribution<lua_Integer> dist(low, up);
-    lua_pushinteger(L, dist(rng));
-  }
-  return 1;
-}
 
 
 void pushbigint (lua_State *L, soup::Bigint x);
@@ -1108,7 +1076,10 @@ static int l_ripemd160 (lua_State *L) {
 
 
 static const luaL_Reg funcs_crypto[] = {
-  {"random", random},
+  /* crypto.random was removed: it drew from soup::FastHardwareRng, a hardware
+   * entropy source. That is non-deterministic implicit state that Eris cannot
+   * capture, so persisting and restoring a machine would not reproduce it.
+   * math.random, which OpenComputers seeds per machine, is the alternative. */
   {"sha1", l_hashwithdigest<soup::sha1>},
   {"sha256", l_hashwithdigest<soup::sha256>},
   {"sha384", l_hashwithdigest<soup::sha384>},

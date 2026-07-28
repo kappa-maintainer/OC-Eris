@@ -779,6 +779,14 @@
 // If defined, Pluto won't imbue tables with a metatable by default.
 //#define PLUTO_NO_DEFAULT_TABLE_METATABLE
 
+// If defined, Pluto omits the extension libraries that reach outside the VM:
+// http, socket, ffi, wasm, scheduler and the '*' aggregate that loads every
+// preloaded library at once. Embedders that sandbox untrusted scripts generally
+// cannot allow these, because they bypass whatever host-side networking, code
+// loading and scheduling policy the embedder enforces. The corresponding source
+// files must also be left out of the build.
+//#define PLUTO_NO_UNSANDBOXABLE_LIBS
+
 // If defined, Pluto will add table.isfrozen & table.freeze to the standard library,
 // lua_freezetable, lua_istablefrozen, & lua_erriffrozen to the C API,
 // and all the hooks required to make it work. Note that coverage may not be perfect.

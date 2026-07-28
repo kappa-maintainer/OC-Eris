@@ -93,7 +93,9 @@ LUAMOD_API int (luaopen_url)	(lua_State *L);
 
 #define PLUTO_STARLIBNAME "*"
 #define PLUTO_STARLIBK (PLUTO_URLLIBK << 1)
+#ifndef PLUTO_NO_UNSANDBOXABLE_LIBS
 LUAMOD_API int (luaopen_star)	(lua_State *L);
+#endif
 
 #define PLUTO_CATLIBNAME "cat"
 #define PLUTO_CATLIBK (PLUTO_STARLIBK << 1)
@@ -101,11 +103,15 @@ LUAMOD_API int (luaopen_cat)	(lua_State *L);
 
 #define PLUTO_HTTPLIBNAME "http"
 #define PLUTO_HTTPLIBK (PLUTO_CATLIBK << 1)
+#ifndef PLUTO_NO_UNSANDBOXABLE_LIBS
 LUAMOD_API int (luaopen_http)	(lua_State *L);
+#endif
 
 #define PLUTO_SCHEDULERLIBNAME "scheduler"
 #define PLUTO_SCHEDULERLIBK (PLUTO_HTTPLIBK << 1)
+#ifndef PLUTO_NO_UNSANDBOXABLE_LIBS
 LUAMOD_API int (luaopen_scheduler)	(lua_State *L);
+#endif
 
 #define PLUTO_BIGINTLIBNAME "bigint"
 #define PLUTO_BIGINTLIBK (PLUTO_SCHEDULERLIBK << 1)
@@ -121,7 +127,9 @@ LUAMOD_API int (luaopen_regex)	(lua_State *L);
 
 #define PLUTO_FFILIBNAME "ffi"
 #define PLUTO_FFILIBK (PLUTO_REGEXLIBK << 1)
+#ifndef PLUTO_NO_UNSANDBOXABLE_LIBS
 LUAMOD_API int (luaopen_ffi)	(lua_State *L);
+#endif
 
 #define PLUTO_CANVASLIBNAME "canvas"
 #define PLUTO_CANVASLIBK (PLUTO_FFILIBK << 1)
@@ -133,9 +141,11 @@ LUAMOD_API int (luaopen_buffer)	(lua_State *L);
 
 #define PLUTO_WASMLIBNAME "wasm"
 #define PLUTO_WASMLIBK (PLUTO_BUFFERLIBK << 1)
+#ifndef PLUTO_NO_UNSANDBOXABLE_LIBS
 LUAMOD_API int (luaopen_wasm)	(lua_State *L);
+#endif
 
-#ifndef __EMSCRIPTEN__
+#if !defined(__EMSCRIPTEN__) && !defined(PLUTO_NO_UNSANDBOXABLE_LIBS)
 #define PLUTO_SOCKETLIBNAME "socket"
 #define PLUTO_SOCKETLIBK (PLUTO_WASMLIBK << 1)
 LUAMOD_API int (luaopen_socket)(lua_State* L);
@@ -151,19 +161,27 @@ namespace Pluto {
   extern const PreloadedLibrary preloaded_assert;
   extern const PreloadedLibrary preloaded_vector3;
   extern const PreloadedLibrary preloaded_url;
+#ifndef PLUTO_NO_UNSANDBOXABLE_LIBS
   extern const PreloadedLibrary preloaded_star;
+#endif
   extern const PreloadedLibrary preloaded_cat;
+#ifndef PLUTO_NO_UNSANDBOXABLE_LIBS
   extern const PreloadedLibrary preloaded_http;
   extern const PreloadedLibrary preloaded_scheduler;
+#endif
   extern const PreloadedLibrary preloaded_bigint;
   extern const PreloadedLibrary preloaded_xml;
   extern const PreloadedLibrary preloaded_regex;
+#ifndef PLUTO_NO_UNSANDBOXABLE_LIBS
   extern const PreloadedLibrary preloaded_ffi;
+#endif
   extern const PreloadedLibrary preloaded_canvas;
   extern const PreloadedLibrary preloaded_buffer;
+#ifndef PLUTO_NO_UNSANDBOXABLE_LIBS
   extern const PreloadedLibrary preloaded_wasm;
 #ifndef __EMSCRIPTEN__
   extern const PreloadedLibrary preloaded_socket;
+#endif
 #endif
 
   inline const PreloadedLibrary* const all_preloaded[] = {
@@ -174,19 +192,27 @@ namespace Pluto {
     &preloaded_assert,
     &preloaded_vector3,
     &preloaded_url,
+#ifndef PLUTO_NO_UNSANDBOXABLE_LIBS
     &preloaded_star,
+#endif
     &preloaded_cat,
+#ifndef PLUTO_NO_UNSANDBOXABLE_LIBS
     &preloaded_http,
     &preloaded_scheduler,
+#endif
     &preloaded_bigint,
     &preloaded_xml,
     &preloaded_regex,
+#ifndef PLUTO_NO_UNSANDBOXABLE_LIBS
     &preloaded_ffi,
+#endif
     &preloaded_canvas,
     &preloaded_buffer,
+#ifndef PLUTO_NO_UNSANDBOXABLE_LIBS
     &preloaded_wasm,
 #ifndef __EMSCRIPTEN__
     &preloaded_socket,
+#endif
 #endif
   };
 

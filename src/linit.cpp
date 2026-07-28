@@ -54,19 +54,27 @@ static const luaL_Reg stdlibs[] = {
   {PLUTO_ASSERTLIBNAME, luaopen_assert},
   {PLUTO_VECTOR3LIBNAME, luaopen_vector3},
   {PLUTO_URLLIBNAME, luaopen_url},
+#ifndef PLUTO_NO_UNSANDBOXABLE_LIBS
   {PLUTO_STARLIBNAME, luaopen_star},
+#endif
   {PLUTO_CATLIBNAME, luaopen_cat},
+#ifndef PLUTO_NO_UNSANDBOXABLE_LIBS
   {PLUTO_HTTPLIBNAME, luaopen_http},
   {PLUTO_SCHEDULERLIBNAME, luaopen_scheduler},
+#endif
   {PLUTO_BIGINTLIBNAME, luaopen_bigint},
   {PLUTO_XMLLIBNAME, luaopen_xml},
   {PLUTO_REGEXLIBNAME, luaopen_regex},
+#ifndef PLUTO_NO_UNSANDBOXABLE_LIBS
   {PLUTO_FFILIBNAME, luaopen_ffi},
+#endif
   {PLUTO_CANVASLIBNAME, luaopen_canvas},
   {PLUTO_BUFFERLIBNAME, luaopen_buffer},
+#ifndef PLUTO_NO_UNSANDBOXABLE_LIBS
   {PLUTO_WASMLIBNAME, luaopen_wasm},
 #ifndef __EMSCRIPTEN__
   {PLUTO_SOCKETLIBNAME, luaopen_socket},
+#endif
 #endif
   {NULL, NULL}
 };
@@ -74,6 +82,13 @@ static const luaL_Reg stdlibs[] = {
 
 /*
 ** require and preload selected standard libraries
+**
+** The bit each library occupies is its position in stdlibs, so omitting entries
+** via PLUTO_NO_UNSANDBOXABLE_LIBS shifts every later library down one bit and
+** its PLUTO_*LIBK constant no longer matches. That is harmless here because
+** nothing selects those libraries individually: PLUTO_DEFAULTLOADLIBS only
+** covers the entries up to crypto, which all precede the omitted ones, and
+** callers pass ~0 for preload.
 */
 LUALIB_API void luaL_openselectedlibs (lua_State *L, int load, int preload) {
   int mask;
