@@ -1168,6 +1168,52 @@ PLUTOLIB_API void pluto_errorifnotgc (lua_State *L) {
 }
 
 
+/*
+** See the commentary on the declaration in lauxlib.h.
+*/
+PLUTOLIB_API void pluto_setpersist (lua_State *L, lua_CFunction serializer,
+                                    const char *libname, const char *ctor) {
+  const int mt = lua_gettop(L);
+  lua_pushliteral(L, "__persist");
+  /* Upvalues of the metamethod: how to serialize, and how to rebuild. */
+  lua_pushcfunction(L, serializer);
+  lua_pushstring(L, libname);
+  lua_pushstring(L, ctor);
+  lua_pushcclosure(L, [](lua_State *L) {
+    /* Resolve the constructor now, so the returned closure captures the
+     * function itself. Eris looks the function up in the permanent-value table,
+     * which the host populates from what it made reachable. */
+    lua_getfield(L, LUA_REGISTRYINDEX, LUA_LOADED_TABLE);
+    lua_getfield(L, -1, lua_tostring(L, lua_upvalueindex(2)));
+    if (l_unlikely(!lua_istable(L, -1))) {
+      return luaL_error(L, "cannot persist a '%s' object because the library is"
+                           " not loaded", lua_tostring(L, lua_upvalueindex(2)));
+    }
+    lua_getfield(L, -1, lua_tostring(L, lua_upvalueindex(3)));
+                                              /* obj ... loaded lib ctor */
+    /* Serialize the object, which sits at index 1. */
+    lua_pushvalue(L, lua_upvalueindex(1));
+    lua_pushvalue(L, 1);
+    lua_call(L, 1, 1);                        /* obj ... loaded lib ctor data */
+
+    /* Build the reconstructor. A Lua closure is required rather than a C one:
+     * Eris can only persist a C closure whose C function is itself in the
+     * permanent-value table, and a per-object closure never is. */
+    static const char *chunk =
+      "local ctor, data = ...\n"
+      "return function() return ctor(data) end";
+    if (l_unlikely(luaL_loadbuffer(L, chunk, strlen(chunk), "=[pluto:persist]")
+                   != LUA_OK)) {
+      return lua_error(L);
+    }
+    lua_insert(L, -3);                        /* obj ... lib chunk ctor data */
+    lua_call(L, 2, 1);                        /* obj ... lib closure */
+    return 1;
+  }, 3);
+  lua_settable(L, mt);
+}
+
+
 LUALIB_API void luaL_addgsub (luaL_Buffer *b, const char *s,
                                      const char *p, const char *r) {
   const char *wild;

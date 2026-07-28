@@ -189,9 +189,12 @@ void pushbigint (lua_State *L, soup::Bigint x) {
     lua_pushcfunction(L, bigint_unm);
     lua_settable(L, -3);
     lua_pushliteral(L, "__index");
-    luaL_loadbuffer(L, "return require\"pluto:bigint\"", 28, 0);
-    lua_call(L, 0, 1);
+    /* See lcanvas.cpp: avoid require so the library also works when the host
+     * omits the package library. */
+    luaL_requiref(L, PLUTO_BIGINTLIBNAME, luaopen_bigint, 0);
     lua_settable(L, -3);
+    /* The decimal string carries the sign, unlike Bigint::toBinary. */
+    pluto_setpersist(L, bigint_tostring, PLUTO_BIGINTLIBNAME, "new");
   }
   lua_setmetatable(L, -2);
 }

@@ -10,12 +10,17 @@ static soup::Canvas* checkcanvas (lua_State *L, int i) {
   return (soup::Canvas*)luaL_checkudata(L, i, "pluto:canvas");
 }
 
+static int canvas_dump (lua_State* L);
+
 static void pushcanvas (lua_State *L, soup::Canvas&& canvas) {
   new (lua_newuserdata(L, sizeof(soup::Canvas))) soup::Canvas(std::move(canvas));
   if (luaL_newmetatable(L, "pluto:canvas")) {
     lua_pushliteral(L, "__index");
-    luaL_loadbuffer(L, "return require\"pluto:canvas\"", 28, 0);
-    lua_call(L, 0, 1);
+    /* Fetch the library table straight from the registry instead of going
+     * through require, which embedders that omit the package library do not
+     * have. When the host opened this library the cached table is the very one
+     * it exposed, so methods stay identical to the public functions. */
+    luaL_requiref(L, PLUTO_CANVASLIBNAME, luaopen_canvas, 0);
     lua_settable(L, -3);
     lua_pushliteral(L, "__gc");
     lua_pushcfunction(L, [](lua_State *L) {
@@ -24,6 +29,8 @@ static void pushcanvas (lua_State *L, soup::Canvas&& canvas) {
       return 0;
     });
     lua_settable(L, -3);
+    /* Persist through the exact pixel dump rather than an image codec. */
+    pluto_setpersist(L, canvas_dump, PLUTO_CANVASLIBNAME, "undump");
   }
   lua_setmetatable(L, -2);
 }
@@ -146,6 +153,62 @@ static int canvas_tobwstring(lua_State* L) {
   return 1;
 }
 
+/*
+** Dump the canvas as its exact pixel data, prefixed by the dimensions.
+**
+** This exists for __persist rather than for scripts. The image codecs cannot be
+** used for that: tobmp/bmp is not a lossless round trip, since Soup's BMP
+** reader and writer disagree on channel order and swap red with blue. Writing
+** the pixels out verbatim keeps save and load exact and does not depend on any
+** codec staying faithful.
+*/
+static int canvas_dump (lua_State* L) {
+  const auto c = checkcanvas(L, 1);
+  luaL_Buffer b;
+  luaL_buffinit(L, &b);
+  /* Dimensions as four bytes each, little endian, then three bytes per pixel. */
+  for (int i = 0; i != 4; ++i)
+    luaL_addchar(&b, static_cast<char>((c->width >> (i * 8)) & 0xFF));
+  for (int i = 0; i != 4; ++i)
+    luaL_addchar(&b, static_cast<char>((c->height >> (i * 8)) & 0xFF));
+  for (const auto& px : c->pixels) {
+    luaL_addchar(&b, static_cast<char>(px.r));
+    luaL_addchar(&b, static_cast<char>(px.g));
+    luaL_addchar(&b, static_cast<char>(px.b));
+  }
+  luaL_pushresult(&b);
+  return 1;
+}
+
+/* Inverse of canvas_dump. */
+static int canvas_undump (lua_State* L) {
+  size_t size;
+  const char *data = luaL_checklstring(L, 1, &size);
+  luaL_argcheck(L, size >= 8, 1, "truncated canvas data");
+  const auto rd = [data](size_t at) {
+    return static_cast<unsigned int>(
+        (static_cast<unsigned char>(data[at])) |
+        (static_cast<unsigned char>(data[at + 1]) << 8) |
+        (static_cast<unsigned char>(data[at + 2]) << 16) |
+        (static_cast<unsigned char>(data[at + 3]) << 24));
+  };
+  const unsigned int width = rd(0), height = rd(4);
+  /* Guard against a hostile or corrupt blob claiming a size it does not carry.
+   * Check the pixel count before multiplying so the product cannot overflow. */
+  luaL_argcheck(L, height == 0 || width <= (size - 8) / 3 / height, 1,
+                "canvas dimensions do not match data");
+  luaL_argcheck(L, size - 8 == (size_t)width * height * 3, 1,
+                "canvas dimensions do not match data");
+  soup::Canvas c(width, height);
+  for (size_t i = 0; i != c.pixels.size(); ++i) {
+    c.pixels[i].r = static_cast<uint8_t>(data[8 + i * 3]);
+    c.pixels[i].g = static_cast<uint8_t>(data[9 + i * 3]);
+    c.pixels[i].b = static_cast<uint8_t>(data[10 + i * 3]);
+  }
+  pushcanvas(L, std::move(c));
+  return 1;
+}
+
 static const luaL_Reg funcs_canvas[] = {
   {"new", canvas_new},
   {"bmp", canvas_bmp},
@@ -158,6 +221,8 @@ static const luaL_Reg funcs_canvas[] = {
   {"tobmp", canvas_tobmp},
   {"topng", canvas_topng},
   {"tobwstring", canvas_tobwstring},
+  {"dump", canvas_dump},
+  {"undump", canvas_undump},
   {nullptr, nullptr}
 };
 PLUTO_NEWLIB(canvas);

@@ -75,12 +75,16 @@ struct PlutoBuffer
   return buf;
 }
 
+static int buffer_tostring (lua_State *L);
+static int buffer_frombuffer (lua_State *L);
+
 static int buffer_new (lua_State *L) {
   new (lua_newuserdata(L, sizeof(PlutoBuffer))) PlutoBuffer{};
   if (luaL_newmetatable(L, "pluto:buffer")) {
     lua_pushliteral(L, "__index");
-    luaL_loadbuffer(L, "return require\"pluto:buffer\"", 28, 0);
-    lua_call(L, 0, 1);
+    /* See lcanvas.cpp: avoid require so the library also works when the host
+     * omits the package library. */
+    luaL_requiref(L, PLUTO_BUFFERLIBNAME, luaopen_buffer, 0);
     lua_settable(L, -3);
     lua_pushliteral(L, "__gc");
     lua_pushcfunction(L, [](lua_State *L) {
@@ -90,9 +94,11 @@ static int buffer_new (lua_State *L) {
     });
     lua_settable(L, -3);
 	lua_pushliteral(L, "__tostring");
-	luaL_loadbuffer(L, "return require\"pluto:buffer\".tostring", 37, 0);
-	lua_call(L, 0, 1);
+	luaL_requiref(L, PLUTO_BUFFERLIBNAME, luaopen_buffer, 0);
+	lua_getfield(L, -1, "tostring");
+	lua_remove(L, -2);
 	lua_settable(L, -3);
+    pluto_setpersist(L, buffer_tostring, PLUTO_BUFFERLIBNAME, "frombuffer");
   }
   lua_setmetatable(L, -2);
   return 1;
@@ -127,10 +133,32 @@ static int buffer_tostring (lua_State *L) {
   return 1;
 }
 
+/*
+** Build a buffer holding the given contents. This is the counterpart to
+** tostring, so a buffer survives being persisted and restored.
+*/
+static int buffer_frombuffer (lua_State *L) {
+  size_t size;
+  const char *data = luaL_checklstring(L, 1, &size);
+  lua_settop(L, 1);
+  buffer_new(L);                                            /* data buf */
+  bool fail = false;
+  try {
+    checkbuffer(L, -1)->buffer.append(data, size);
+  }
+  catch (const std::bad_alloc&) {
+    fail = true;
+  }
+  if (l_unlikely(fail))
+    luaD_throw(L, LUA_ERRMEM);
+  return 1;
+}
+
 static const luaL_Reg funcs_buffer[] = {
   {"new", buffer_new},
   {"append", buffer_append},
   {"tostring", buffer_tostring},
+  {"frombuffer", buffer_frombuffer},
   {nullptr, nullptr}
 };
 

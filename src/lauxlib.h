@@ -166,8 +166,7 @@ LUALIB_API void (luaL_requiref) (lua_State *L, const char *modname,
 #ifndef PLUTO_LUA_LINKABLE
 PLUTOLIB_API void (pluto_errorifnotgc) (lua_State *L);
 #endif
-inline void* pluto_setupgcmt(lua_State* L, void* ret, const char* tname, lua_CFunction gcfunc) {
-  if (luaL_newmetatable(L, tname)) {
+inline void* pluto_setupgcmt(lua_State* L, void* ret, const char* tname, lua_CFunction gcfunc) {  if (luaL_newmetatable(L, tname)) {
     lua_pushliteral(L, "__gc");
     lua_pushcfunction(L, gcfunc);
     lua_settable(L, -3);
@@ -176,6 +175,25 @@ inline void* pluto_setupgcmt(lua_State* L, void* ret, const char* tname, lua_CFu
   return ret;
 }
 #define pluto_newclassinst(L, T, ...) (T*)pluto_setupgcmt(L, new (lua_newuserdata(L, sizeof(T))) T(__VA_ARGS__), #T, [](lua_State *L2) { pluto_errorifnotgc(L2); std::destroy_at<>((T*)luaL_checkudata(L2, 1, #T)); return 0; })
+
+/*
+** Install a __persist metamethod on the metatable at the top of the stack.
+**
+** Eris refuses to serialize userdata unless its metatable says how, because the
+** object's real state usually lives in heap memory that a byte copy would not
+** own. Setting __persist to true instead of a function is not an option here:
+** that opts into the byte copy and the restored object then points at freed
+** memory.
+**
+** 'serializer' must turn the object at index 1 into a single string, and
+** 'libname' and 'ctor' must name a library function that turns that string back
+** into an equivalent object. The metamethod returns a Lua closure over those
+** two values, which is what Eris persists: it dumps the closure's prototype and
+** resolves the captured library function through the permanent-value table, so
+** the reconstructed object comes from the same library the host exposed.
+*/
+PLUTOLIB_API void (pluto_setpersist) (lua_State *L, lua_CFunction serializer,
+                                      const char *libname, const char *ctor);
 
 /*
 ** ===============================================================

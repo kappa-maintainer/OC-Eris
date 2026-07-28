@@ -8,6 +8,8 @@ static soup::Regex* checkregex (lua_State *L, int i) {
   return (soup::Regex*)luaL_checkudata(L, i, "pluto:regex");
 }
 
+static int regex_dump (lua_State *L);
+
 static int regex_new (lua_State *L) {
   void *addr = lua_newuserdata(L, sizeof(soup::Regex));
   try {
@@ -18,8 +20,9 @@ static int regex_new (lua_State *L) {
   }
   if (luaL_newmetatable(L, "pluto:regex")) {
     lua_pushliteral(L, "__index");
-    luaL_loadbuffer(L, "return require\"pluto:regex\"", 27, 0);
-    lua_call(L, 0, 1);
+    /* See lcanvas.cpp: avoid require so the library also works when the host
+     * omits the package library. */
+    luaL_requiref(L, PLUTO_REGEXLIBNAME, luaopen_regex, 0);
     lua_settable(L, -3);
     lua_pushliteral(L, "__gc");
     lua_pushcfunction(L, [](lua_State *L) {
@@ -28,6 +31,7 @@ static int regex_new (lua_State *L) {
       return 0;
     });
     lua_settable(L, -3);
+    pluto_setpersist(L, regex_dump, PLUTO_REGEXLIBNAME, "new");
   }
   lua_setmetatable(L, -2);
   return 1;
@@ -101,6 +105,16 @@ static int regex_substitute (lua_State *L) {
   std::string& str = *pluto_newclassinst(L, std::string, cStr, lStr);
   std::string& replacement = *pluto_newclassinst(L, std::string, cReplacement, lReplacement);
   pluto_pushstring(L, r->substitute(str, replacement, r->hasGlobalFlag()));
+  return 1;
+}
+
+/*
+** Serialize the pattern in its '/pattern/flags' form, which is what regex_new
+** accepts back. Soup normalizes as it unparses, so the text may differ from what
+** the script wrote, but the round trip is stable and preserves the flags.
+*/
+static int regex_dump (lua_State *L) {
+  pluto_pushstring(L, checkregex(L, 1)->toFullString());
   return 1;
 }
 
