@@ -56,10 +56,15 @@ LUAMOD_API int (luaopen_table) (lua_State *L);
 LUAMOD_API int (luaopen_utf8) (lua_State *L);
 
 
+#define LUA_ERISLIBNAME	"eris"
+#define LUA_ERISLIBK	(LUA_UTF8LIBK << 1)
+LUAMOD_API int (luaopen_eris) (lua_State *L);
+
+
 #define PLUTO_DEFAULTLOADLIBS PLUTO_CRYPTOLIBK - 1
 
 #define PLUTO_CRYPTOLIBNAME "crypto"
-#define PLUTO_CRYPTOLIBK (LUA_UTF8LIBK << 1)
+#define PLUTO_CRYPTOLIBK (LUA_ERISLIBK << 1)
 LUAMOD_API int (luaopen_crypto)	(lua_State *L);
 
 #define PLUTO_JSONLIBNAME "json"

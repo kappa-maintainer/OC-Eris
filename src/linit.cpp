@@ -46,6 +46,7 @@ static const luaL_Reg stdlibs[] = {
   {LUA_STRLIBNAME, luaopen_string},
   {LUA_TABLIBNAME, luaopen_table},
   {LUA_UTF8LIBNAME, luaopen_utf8},
+  {LUA_ERISLIBNAME, luaopen_eris},
   {PLUTO_CRYPTOLIBNAME, luaopen_crypto},
   {PLUTO_JSONLIBNAME, luaopen_json},
   {PLUTO_BASE32LIBNAME, luaopen_base32},

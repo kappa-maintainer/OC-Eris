@@ -40,7 +40,7 @@ PLATS= guess aix bsd freebsd generic linux termux macosx mingw mingwdll posix so
 LUA_A=	libplutostatic.a
 LUA_SO= libpluto.so
 CORE_O=	lapi.o lcode.o lctype.o ldebug.o ldo.o ldump.o lfunc.o lgc.o llex.o lmem.o lobject.o lopcodes.o lparser.o lstate.o lstring.o ltable.o ltm.o lundump.o lvm.o lzio.o
-LIB_O=	lauxlib.o lbaselib.o lcorolib.o ldblib.o liolib.o lmathlib.o loadlib.o loslib.o lstrlib.o lcryptolib.o ltablib.o lutf8lib.o lassertlib.o lvector3lib.o lbase32.o lbase64.o ljson.o lurllib.o linit.o lstarlib.o lcatlib.o lhttplib.o lschedulerlib.o lsocketlib.o lbigint.o lxml.o lregex.o lffi.o lcanvas.o lbufferlib.o lwasmlib.o
+LIB_O=	lauxlib.o lbaselib.o lcorolib.o ldblib.o liolib.o lmathlib.o loadlib.o loslib.o lstrlib.o lcryptolib.o ltablib.o lutf8lib.o lassertlib.o lvector3lib.o lbase32.o lbase64.o ljson.o lurllib.o linit.o lstarlib.o lcatlib.o lhttplib.o lschedulerlib.o lsocketlib.o lbigint.o lxml.o lregex.o lffi.o lcanvas.o lbufferlib.o lwasmlib.o eris.o
 BASE_O= $(CORE_O) $(LIB_O) $(MYOBJS)
 
 LUA_T=	pluto
@@ -49,8 +49,14 @@ LUA_O=	lua.o
 LUAC_T=	plutoc
 LUAC_O=	luac.o
 
-ALL_O= $(BASE_O) $(LUA_O) $(LUAC_O)
-ALL_T= $(LUA_A) $(LUA_T) $(LUAC_T) $(LUA_SO)
+TESTP_T= ../test/persist
+TESTP_O= ../test/persist.o
+
+TESTUP_T= ../test/unpersist
+TESTUP_O= ../test/unpersist.o
+
+ALL_O= $(BASE_O) $(LUA_O) $(LUAC_O) $(TESTP_O) $(TESTUP_O)
+ALL_T= $(LUA_A) $(LUA_T) $(LUAC_T) $(LUA_SO) $(TESTP_T) $(TESTUP_T)
 ALL_A= $(LUA_A)
 
 # Targets start here.
@@ -75,6 +81,18 @@ $(LUA_T): $(LUA_O) $(LUA_A)
 
 $(LUAC_T): $(LUAC_O) $(LUA_A)
 	$(CXX) -o $@ $(LDFLAGS) $(LUAC_O) $(LUA_A) $(LIBS)
+
+$(TESTP_T): $(LUA_A) $(TESTP_O)
+	$(CXX) -o $@ $(LDFLAGS) $(TESTP_O) $(LUA_A) $(LIBS)
+
+$(TESTUP_T): $(LUA_A) $(TESTUP_O)
+	$(CXX) -o $@ $(LDFLAGS) $(TESTUP_O) $(LUA_A) $(LIBS)
+
+$(TESTP_O): ../test/persist.cpp lua.h lualib.h lauxlib.h
+	$(CXX) $(CXXFLAGS) -c -o $@ $< -I.
+
+$(TESTUP_O): ../test/unpersist.cpp lua.h lualib.h lauxlib.h
+	$(CXX) $(CXXFLAGS) -c -o $@ $< -I.
 
 test:
 	./$(LUA_T) -v
