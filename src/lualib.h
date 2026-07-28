@@ -142,6 +142,7 @@ LUAMOD_API int (luaopen_socket)(lua_State* L);
 #endif
 
 
+#ifdef __cplusplus
 namespace Pluto {
   extern const PreloadedLibrary preloaded_crypto;
   extern const PreloadedLibrary preloaded_json;
@@ -197,6 +198,7 @@ namespace Pluto {
     &constexpr_math,
   };
 }
+#endif
 
 
 /* open selected libraries */

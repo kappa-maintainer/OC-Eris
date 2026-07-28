@@ -45,6 +45,7 @@ typedef struct luaL_Reg {
 } luaL_Reg;
 
 
+#ifdef __cplusplus
 namespace Pluto {
   struct ConstexprLibrary {
     const char* name;
@@ -63,6 +64,7 @@ namespace Pluto {
     {}
   };
 }
+#endif
 
 
 #define PLUTO_NEWLIB(name) LUAMOD_API int luaopen_##name(lua_State *L) { luaL_newlib(L, funcs_##name); return 1; } const Pluto::PreloadedLibrary Pluto::preloaded_##name { #name, funcs_##name, &luaopen_##name };
