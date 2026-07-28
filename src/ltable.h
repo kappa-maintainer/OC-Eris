@@ -20,7 +20,7 @@
 ** may have any of these metamethods. (First access that fails after the
 ** clearing will set the bit again.)
 */
-#define invalidateTMcache(t)	((t)->flags &= cast_byte(~maskflags))
+#define invalidateTMcache(t)	((t)->flags &= ~maskflags)
 
 
 /*
@@ -28,8 +28,8 @@
 ** for its hash part.
 */
 
-#define BITDUMMY		(1 << 6)
-#define NOTBITDUMMY		cast_byte(~BITDUMMY)
+#define BITDUMMY		(1 << 7)
+#define NOTBITDUMMY		(short)(~BITDUMMY)
 #define isdummy(t)		((t)->flags & BITDUMMY)
 
 #define setnodummy(t)		((t)->flags &= NOTBITDUMMY)
@@ -167,6 +167,7 @@ LUAI_FUNC void luaH_set (lua_State *L, Table *t, const TValue *key,
 LUAI_FUNC void luaH_finishset (lua_State *L, Table *t, const TValue *key,
                                               TValue *value, int hres);
 LUAI_FUNC Table *luaH_new (lua_State *L);
+LUAI_FUNC void luaH_initmetatable (lua_State *L, Table *t);
 LUAI_FUNC void luaH_resize (lua_State *L, Table *t, unsigned nasize,
                                                     unsigned nhsize);
 LUAI_FUNC void luaH_resizearray (lua_State *L, Table *t, unsigned nasize);
@@ -174,6 +175,12 @@ LUAI_FUNC lu_mem luaH_size (Table *t);
 LUAI_FUNC void luaH_free (lua_State *L, Table *t);
 LUAI_FUNC int luaH_next (lua_State *L, Table *t, StkId key);
 LUAI_FUNC lua_Unsigned luaH_getn (lua_State *L, Table *t);
+
+
+#ifndef PLUTO_LUA_LINKABLE
+LUAI_FUNC unsigned luaH_gethsize (const Table *t);
+LUAI_FUNC void luaH_clear (lua_State *L, Table *t);
+#endif
 
 
 #if defined(LUA_DEBUG)

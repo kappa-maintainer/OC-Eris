@@ -11,6 +11,10 @@
 
 #include <stdarg.h>
 #include <stddef.h>
+#ifdef __cplusplus
+#include <string>
+#include <string_view>
+#endif
 
 
 #define LUA_COPYRIGHT	LUA_RELEASE "  Copyright (C) 1994-2025 Lua.org, PUC-Rio"
@@ -23,6 +27,10 @@
 
 #define LUA_VERSION_NUM  (LUA_VERSION_MAJOR_N * 100 + LUA_VERSION_MINOR_N)
 #define LUA_VERSION_RELEASE_NUM  (LUA_VERSION_NUM * 100 + LUA_VERSION_RELEASE_N)
+
+#define PLUTO_VERSION "Pluto 0.13.0"
+#define PLUTO_COPYRIGHT_NO_BASED PLUTO_VERSION ", Copyright (C) 2022-2025 PlutoLang.org, PlutoLang (https://github.com/PlutoLang)"
+#define PLUTO_COPYRIGHT PLUTO_COPYRIGHT_NO_BASED "\r\nBased on " LUA_COPYRIGHT
 
 
 #include "luaconf.h"
@@ -193,6 +201,9 @@ LUA_API int             (lua_isnumber) (lua_State *L, int idx);
 LUA_API int             (lua_isstring) (lua_State *L, int idx);
 LUA_API int             (lua_iscfunction) (lua_State *L, int idx);
 LUA_API int             (lua_isinteger) (lua_State *L, int idx);
+#ifndef PLUTO_LUA_LINKABLE
+LUA_API int             (lua_istrue) (lua_State *L, int idx);
+#endif
 LUA_API int             (lua_isuserdata) (lua_State *L, int idx);
 LUA_API int             (lua_type) (lua_State *L, int idx);
 LUA_API const char     *(lua_typename) (lua_State *L, int tp);
@@ -247,6 +258,10 @@ LUA_API const char *(lua_pushlstring) (lua_State *L, const char *s, size_t len);
 LUA_API const char *(lua_pushexternalstring) (lua_State *L,
 		const char *s, size_t len, lua_Alloc falloc, void *ud);
 LUA_API const char *(lua_pushstring) (lua_State *L, const char *s);
+#ifdef __cplusplus
+PLUTO_API const char *(pluto_pushstring) (lua_State* L, const std::string& str);
+PLUTO_API const char *(pluto_pushstring) (lua_State* L, const std::string_view&& str);
+#endif
 LUA_API const char *(lua_pushvfstring) (lua_State *L, const char *fmt,
                                                       va_list argp);
 LUA_API const char *(lua_pushfstring) (lua_State *L, const char *fmt, ...);
@@ -285,6 +300,11 @@ LUA_API void  (lua_rawseti) (lua_State *L, int idx, lua_Integer n);
 LUA_API void  (lua_rawsetp) (lua_State *L, int idx, const void *p);
 LUA_API int   (lua_setmetatable) (lua_State *L, int objindex);
 LUA_API int   (lua_setiuservalue) (lua_State *L, int idx, int n);
+#ifdef PLUTO_ENABLE_TABLE_FREEZING
+LUA_API void  (lua_freezetable) (lua_State *L, int idx);
+LUA_API int   (lua_istablefrozen) (lua_State *L, int idx);
+LUA_API void  (lua_erriffrozen) (lua_State *L, int idx);
+#endif
 
 
 /*
@@ -322,6 +342,9 @@ LUA_API int (lua_isyieldable) (lua_State *L);
 */
 LUA_API void (lua_setwarnf) (lua_State *L, lua_WarnFunction f, void *ud);
 LUA_API void (lua_warning)  (lua_State *L, const char *msg, int tocont);
+#ifndef PLUTO_LUA_LINKABLE
+PLUTO_API void (pluto_warning) (lua_State *L, const char *msg);
+#endif
 
 
 /*
@@ -364,7 +387,7 @@ LUA_API int (lua_gc) (lua_State *L, int what, ...);
 ** miscellaneous functions
 */
 
-LUA_API int   (lua_error) (lua_State *L);
+LUA_API_NORETURN int   (lua_error) (lua_State *L);
 
 LUA_API int   (lua_next) (lua_State *L, int idx);
 
@@ -418,11 +441,20 @@ LUA_API void (lua_closeslot) (lua_State *L, int idx);
 #define lua_tostring(L,i)	lua_tolstring(L, (i), NULL)
 
 
+/*
+** These macros are individual functions for optimization purposes.
+** This optimization is entirely accredited to gottfriedleibniz.
+** https://github.com/gottfriedleibniz/lua/commit/7c7f50586efa6ed90c75a498b361b4f76793a4d0
+*/
+#ifndef PLUTO_LUA_LINKABLE
+LUA_API void (lua_insert) (lua_State *L, int idx);
+LUA_API void (lua_remove) (lua_State *L, int idx);
+LUA_API void (lua_replace) (lua_State *L, int idx);
+#else
 #define lua_insert(L,idx)	lua_rotate(L, (idx), 1)
-
 #define lua_remove(L,idx)	(lua_rotate(L, (idx), -1), lua_pop(L, 1))
-
 #define lua_replace(L,idx)	(lua_copy(L, -1, (idx)), lua_pop(L, 1))
+#endif
 
 /* }============================================================== */
 
@@ -521,6 +553,7 @@ struct lua_Debug {
 
 
 /******************************************************************************
+* Copyright (C) 2022-2025 PlutoLang.org, Ryan Starrett, Sainan.
 * Copyright (C) 1994-2025 Lua.org, PUC-Rio.
 *
 * Permission is hereby granted, free of charge, to any person obtaining

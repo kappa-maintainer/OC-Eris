@@ -4,7 +4,7 @@
 # == CHANGE THE SETTINGS BELOW TO SUIT YOUR ENVIRONMENT =======================
 
 # Your platform. See PLATS for possible values.
-PLAT= guess
+PLAT=
 
 # Where to install. The installation starts in the src and doc directories,
 # so take care if INSTALL_TOP is not an absolute path. See the local target.
@@ -14,7 +14,6 @@ INSTALL_TOP= /usr/local
 INSTALL_BIN= $(INSTALL_TOP)/bin
 INSTALL_INC= $(INSTALL_TOP)/include
 INSTALL_LIB= $(INSTALL_TOP)/lib
-INSTALL_MAN= $(INSTALL_TOP)/man/man1
 INSTALL_LMOD= $(INSTALL_TOP)/share/lua/$V
 INSTALL_CMOD= $(INSTALL_TOP)/lib/lua/$V
 
@@ -36,17 +35,16 @@ RM= rm -f
 # == END OF USER SETTINGS -- NO NEED TO CHANGE ANYTHING BELOW THIS LINE =======
 
 # Convenience platforms targets.
-PLATS= guess aix bsd c89 freebsd generic ios linux macosx mingw posix solaris
+PLATS= guess aix bsd freebsd generic linux termux macosx mingw mingwdll posix solaris
 
 # What to install.
-TO_BIN= lua luac
+TO_BIN= pluto plutoc
 TO_INC= lua.h luaconf.h lualib.h lauxlib.h lua.hpp
-TO_LIB= liblua.a
-TO_MAN= lua.1 luac.1
+TO_LIB= libpluto.so libplutostatic.a
 
 # Lua version and release.
-V= 5.5
-R= $V.0
+V= 5.4
+R= $V.4
 
 # Targets start here.
 all:	$(PLAT)
@@ -55,17 +53,15 @@ $(PLATS) help test clean:
 	@cd src && $(MAKE) $@
 
 install: dummy
-	cd src && $(MKDIR) $(INSTALL_BIN) $(INSTALL_INC) $(INSTALL_LIB) $(INSTALL_MAN) $(INSTALL_LMOD) $(INSTALL_CMOD)
+	cd src && $(MKDIR) $(INSTALL_BIN) $(INSTALL_INC) $(INSTALL_LIB) $(INSTALL_LMOD) $(INSTALL_CMOD)
 	cd src && $(INSTALL_EXEC) $(TO_BIN) $(INSTALL_BIN)
 	cd src && $(INSTALL_DATA) $(TO_INC) $(INSTALL_INC)
 	cd src && $(INSTALL_DATA) $(TO_LIB) $(INSTALL_LIB)
-	cd doc && $(INSTALL_DATA) $(TO_MAN) $(INSTALL_MAN)
 
 uninstall:
 	cd src && cd $(INSTALL_BIN) && $(RM) $(TO_BIN)
 	cd src && cd $(INSTALL_INC) && $(RM) $(TO_INC)
 	cd src && cd $(INSTALL_LIB) && $(RM) $(TO_LIB)
-	cd doc && cd $(INSTALL_MAN) && $(RM) $(TO_MAN)
 
 local:
 	$(MAKE) install INSTALL_TOP=../install
@@ -82,12 +78,10 @@ echo:
 	@echo "TO_BIN= $(TO_BIN)"
 	@echo "TO_INC= $(TO_INC)"
 	@echo "TO_LIB= $(TO_LIB)"
-	@echo "TO_MAN= $(TO_MAN)"
 	@echo "INSTALL_TOP= $(INSTALL_TOP)"
 	@echo "INSTALL_BIN= $(INSTALL_BIN)"
 	@echo "INSTALL_INC= $(INSTALL_INC)"
 	@echo "INSTALL_LIB= $(INSTALL_LIB)"
-	@echo "INSTALL_MAN= $(INSTALL_MAN)"
 	@echo "INSTALL_LMOD= $(INSTALL_LMOD)"
 	@echo "INSTALL_CMOD= $(INSTALL_CMOD)"
 	@echo "INSTALL_EXEC= $(INSTALL_EXEC)"

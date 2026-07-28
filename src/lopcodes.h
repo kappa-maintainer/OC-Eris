@@ -344,11 +344,17 @@ OP_ERRNNIL,/*	A Bx	raise error if R[A] ~= nil (K[Bx - 1] is global name)*/
 
 OP_VARARGPREP,/* 	(adjust varargs)				*/
 
-OP_EXTRAARG/*	Ax	extra (larger) argument for previous opcode	*/
+OP_EXTRAARG,/*	Ax	extra (larger) argument for previous opcode	*/
+
+OP_IN,/* A B C 
+if A is string
+  push R(A):find(R(B)) ~= nil
+else
+  push R(B):contains(R(A)) ~= nil
+*/
+
+NUM_OPCODES
 } OpCode;
-
-
-#define NUM_OPCODES	((int)(OP_EXTRAARG) + 1)
 
 
 

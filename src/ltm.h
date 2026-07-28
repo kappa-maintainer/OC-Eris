@@ -21,7 +21,9 @@ typedef enum {
   TM_GC,
   TM_MODE,
   TM_LEN,
+  TM_CALL,
   TM_EQ,  /* last tag method with fast access */
+  TM_MINDEX,
   TM_ADD,
   TM_SUB,
   TM_MUL,
@@ -39,17 +41,28 @@ typedef enum {
   TM_LT,
   TM_LE,
   TM_CONCAT,
-  TM_CALL,
   TM_CLOSE,
   TM_N		/* number of elements in the enum */
 } TMS;
+
+
+inline const char *const luaT_eventname[] = {  /* ORDER TM */
+  "__index", "__newindex",
+  "__gc", "__mode", "__len", "__call", "__eq",
+  "__mindex",
+  "__add", "__sub", "__mul", "__mod", "__pow",
+  "__div", "__idiv",
+  "__band", "__bor", "__bxor", "__shl", "__shr",
+  "__unm", "__bnot", "__lt", "__le",
+  "__concat", "__close"
+};
 
 
 /*
 ** Mask with 1 in all fast-access methods. A 1 in any of these bits
 ** in the flag of a (meta)table means the metatable does not have the
 ** corresponding metamethod field. (Bit 6 of the flag indicates that
-** the table is using the dummy node; bit 7 is used for 'isrealasize'.)
+** the table is using the dummy node.)
 */
 #define maskflags	cast_byte(~(~0u << (TM_EQ + 1)))
 
@@ -77,6 +90,10 @@ LUAI_FUNC const char *luaT_objtypename (lua_State *L, const TValue *o);
 LUAI_FUNC const TValue *luaT_gettm (Table *events, TMS event, TString *ename);
 LUAI_FUNC const TValue *luaT_gettmbyobj (lua_State *L, const TValue *o,
                                                        TMS event);
+#ifndef PLUTO_LUA_LINKABLE
+LUAI_FUNC const TValue *luaT_getfasttmbyobj (lua_State *L, const TValue *o,
+                                                           TMS event);
+#endif
 LUAI_FUNC void luaT_init (lua_State *L);
 
 LUAI_FUNC void luaT_callTM (lua_State *L, const TValue *f, const TValue *p1,

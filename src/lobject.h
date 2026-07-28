@@ -10,6 +10,7 @@
 
 
 #include <stdarg.h>
+#include <string>
 
 
 #include "llimits.h"
@@ -52,8 +53,6 @@ typedef union Value {
   lua_CFunction f; /* light C functions */
   lua_Integer i;   /* integer numbers */
   lua_Number n;    /* float numbers */
-  /* not used, but may avoid warnings for uninitialized value */
-  lu_byte ub;
 } Value;
 
 
@@ -402,7 +401,7 @@ typedef struct GCObject {
 /*
 ** Header for a string value.
 */
-typedef struct TString {
+struct TString {
   CommonHeader;
   lu_byte extra;  /* reserved words for short strings; "has hash" for longs */
   ls_byte shrlen;  /* length for short strings, negative for long strings */
@@ -414,7 +413,10 @@ typedef struct TString {
   char *contents;  /* pointer to content in long strings */
   lua_Alloc falloc;  /* deallocation function for external strings */
   void *ud;  /* user data for external strings */
-} TString;
+
+  [[nodiscard]] size_t size() const noexcept;
+  [[nodiscard]] std::string toCpp() const;
+};
 
 
 #define strisshr(ts)	((ts)->shrlen >= 0)
@@ -622,6 +624,15 @@ typedef struct Proto {
   LocVar *locvars;  /* information about local variables (debug information) */
   TString  *source;  /* used for debug information */
   GCObject *gclist;
+  bool lua_vm_compatible;
+  lu_byte min_required_version;
+
+  void onPlutoOpUsed(lu_byte min_required_version) noexcept {
+    if (lua_vm_compatible || min_required_version > this->min_required_version) {
+      lua_vm_compatible = false;
+      this->min_required_version = min_required_version;
+    }
+  }
 } Proto;
 
 /* }================================================================== */
@@ -775,13 +786,16 @@ typedef union Node {
 
 typedef struct Table {
   CommonHeader;
-  lu_byte flags;  /* 1<<p means tagmethod(p) is not present */
+  lu_byte flags;  /* 1<<p means tagmethod(p) is not present [Pluto] Lua also uses this for BITDUMMY */
   lu_byte lsizenode;  /* log2 of number of slots of 'node' array */
   unsigned int asize;  /* number of slots in 'array' array */
   Value *array;  /* array part */
   Node *node;
   struct Table *metatable;
   GCObject *gclist;
+#ifdef PLUTO_ENABLE_TABLE_FREEZING
+  bool isfrozen;
+#endif
 } Table;
 
 

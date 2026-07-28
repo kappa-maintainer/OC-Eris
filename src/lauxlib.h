@@ -12,6 +12,10 @@
 #include <stddef.h>
 #include <stdio.h>
 
+#ifdef _WIN32
+#include <string>
+#endif
+
 #include "luaconf.h"
 #include "lua.h"
 
@@ -41,6 +45,29 @@ typedef struct luaL_Reg {
 } luaL_Reg;
 
 
+namespace Pluto {
+  struct ConstexprLibrary {
+    const char* name;
+    const luaL_Reg* funcs;
+
+    ConstexprLibrary(const char* name, const luaL_Reg* funcs)
+      : name(name), funcs(funcs)
+    {}
+  };
+
+  struct PreloadedLibrary : public ConstexprLibrary {
+    const lua_CFunction init;
+
+    PreloadedLibrary(const char* name, const luaL_Reg* funcs, lua_CFunction init)
+      : ConstexprLibrary(name, funcs), init(init)
+    {}
+  };
+}
+
+
+#define PLUTO_NEWLIB(name) LUAMOD_API int luaopen_##name(lua_State *L) { luaL_newlib(L, funcs_##name); return 1; } const Pluto::PreloadedLibrary Pluto::preloaded_##name { #name, funcs_##name, &luaopen_##name };
+
+
 #define LUAL_NUMSIZES	(sizeof(lua_Integer)*16 + sizeof(lua_Number))
 
 LUALIB_API void (luaL_checkversion_) (lua_State *L, lua_Number ver, size_t sz);
@@ -50,12 +77,16 @@ LUALIB_API void (luaL_checkversion_) (lua_State *L, lua_Number ver, size_t sz);
 LUALIB_API int (luaL_getmetafield) (lua_State *L, int obj, const char *e);
 LUALIB_API int (luaL_callmeta) (lua_State *L, int obj, const char *e);
 LUALIB_API const char *(luaL_tolstring) (lua_State *L, int idx, size_t *len);
-LUALIB_API int (luaL_argerror) (lua_State *L, int arg, const char *extramsg);
-LUALIB_API int (luaL_typeerror) (lua_State *L, int arg, const char *tname);
+LUALIB_API_NORETURN int (luaL_argerror) (lua_State *L, int arg, const char *extramsg);
+LUALIB_API_NORETURN int (luaL_typeerror) (lua_State *L, int arg, const char *tname);
 LUALIB_API const char *(luaL_checklstring) (lua_State *L, int arg,
                                                           size_t *l);
 LUALIB_API const char *(luaL_optlstring) (lua_State *L, int arg,
                                           const char *def, size_t *l);
+#ifndef PLUTO_LUA_LINKABLE
+PLUTOLIB_API std::string pluto_checkstring (lua_State *L, int arg);
+PLUTOLIB_API std::string pluto_optstring (lua_State *L, int arg, std::string def);
+#endif
 LUALIB_API lua_Number (luaL_checknumber) (lua_State *L, int arg);
 LUALIB_API lua_Number (luaL_optnumber) (lua_State *L, int arg, lua_Number def);
 
@@ -73,7 +104,7 @@ LUALIB_API void *(luaL_testudata) (lua_State *L, int ud, const char *tname);
 LUALIB_API void *(luaL_checkudata) (lua_State *L, int ud, const char *tname);
 
 LUALIB_API void (luaL_where) (lua_State *L, int lvl);
-LUALIB_API int (luaL_error) (lua_State *L, const char *fmt, ...);
+LUALIB_API_NORETURN int (luaL_error) (lua_State *L, const char *fmt, ...);
 
 LUALIB_API int (luaL_checkoption) (lua_State *L, int arg, const char *def,
                                    const char *const lst[]);
@@ -81,8 +112,8 @@ LUALIB_API int (luaL_checkoption) (lua_State *L, int arg, const char *def,
 LUALIB_API int (luaL_fileresult) (lua_State *L, int stat, const char *fname);
 LUALIB_API int (luaL_execresult) (lua_State *L, int stat);
 
-LUALIB_API void *luaL_alloc (void *ud, void *ptr, size_t osize,
-                                                  size_t nsize);
+LUALIB_API void *(luaL_alloc) (void *ud, void *ptr, size_t osize,
+                                                    size_t nsize);
 
 
 /* predefined references */
@@ -91,6 +122,14 @@ LUALIB_API void *luaL_alloc (void *ud, void *ptr, size_t osize,
 
 LUALIB_API int (luaL_ref) (lua_State *L, int t);
 LUALIB_API void (luaL_unref) (lua_State *L, int t, int ref);
+
+#ifdef _WIN32
+PLUTOLIB_API std::wstring luaL_utf8_to_utf16(const char *utf8, size_t utf8_len);
+PLUTOLIB_API std::string luaL_utf16_to_utf8(const wchar_t *utf16, size_t utf16_len);
+#endif
+
+LUALIB_API FILE* (luaL_fopen) (const char *filename, size_t filename_len,
+                               const char *mode, size_t mode_len);
 
 LUALIB_API int (luaL_loadfilex) (lua_State *L, const char *filename,
                                                const char *mode);
@@ -103,7 +142,7 @@ LUALIB_API int (luaL_loadstring) (lua_State *L, const char *s);
 
 LUALIB_API lua_State *(luaL_newstate) (void);
 
-LUALIB_API unsigned luaL_makeseed (lua_State *L);
+LUALIB_API unsigned (luaL_makeseed) (lua_State *L);
 
 LUALIB_API lua_Integer (luaL_len) (lua_State *L, int idx);
 
@@ -121,6 +160,20 @@ LUALIB_API void (luaL_traceback) (lua_State *L, lua_State *L1,
 
 LUALIB_API void (luaL_requiref) (lua_State *L, const char *modname,
                                  lua_CFunction openf, int glb);
+
+#ifndef PLUTO_LUA_LINKABLE
+PLUTOLIB_API void (pluto_errorifnotgc) (lua_State *L);
+#endif
+inline void* pluto_setupgcmt(lua_State* L, void* ret, const char* tname, lua_CFunction gcfunc) {
+  if (luaL_newmetatable(L, tname)) {
+    lua_pushliteral(L, "__gc");
+    lua_pushcfunction(L, gcfunc);
+    lua_settable(L, -3);
+  }
+  lua_setmetatable(L, -2);
+  return ret;
+}
+#define pluto_newclassinst(L, T, ...) (T*)pluto_setupgcmt(L, new (lua_newuserdata(L, sizeof(T))) T(__VA_ARGS__), #T, [](lua_State *L2) { pluto_errorifnotgc(L2); std::destroy_at<>((T*)luaL_checkudata(L2, 1, #T)); return 0; })
 
 /*
 ** ===============================================================
@@ -158,6 +211,8 @@ LUALIB_API void (luaL_requiref) (lua_State *L, const char *modname,
 
 #define luaL_loadbuffer(L,s,sz,n)	luaL_loadbufferx(L,s,sz,n,NULL)
 
+// [Pluto]
+#define luaL_check(L, cond, msg) if (l_unlikely(cond)) { luaL_error(L, msg); }
 
 /*
 ** Perform arithmetic operations on lua_Integer values with wrap-around

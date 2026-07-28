@@ -61,8 +61,9 @@ typedef lu_byte TStatus;
 
 /*
 ** test whether an unsigned value is a power of 2 (or zero)
+** [Pluto] renamed from 'ispow2' to 'luaispow2'
 */
-#define ispow2(x)	(((x) & ((x) - 1)) == 0)
+#define luaispow2(x)	(((x) & ((x) - 1)) == 0)
 
 
 /* number of chars of a literal string without the ending \0 */

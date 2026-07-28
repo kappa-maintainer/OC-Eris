@@ -1,3 +1,30 @@
-This is the vanilla Lua code, as retrievable from http://www.lua.org/
+<p align='center'>
+  <img alt="Pluto Logo" width="20%" src="https://avatars.githubusercontent.com/u/108627128" /><br>
+</p>
+Pluto is a unique dialect of Lua with a focus on general-purpose programming.
 
-The master is based on this to make upgrading to new Lua versions easier (hopefully).
+### Why should you choose Pluto?
+- **Accelerated Development.**
+  - Greatly enhanced standard library.
+  - Several new syntaxes, such as switch statements, compound operators, ternary expressions, etc.
+
+- **Focused On Lua Compatibility.**
+  - Pluto is largely compatible with Lua 5.5 source code, but there is an imperfection:
+    - Pluto implements new keywords, which can cause conflicts with otherwise normal identifiers such as 'switch', or 'class'. The parser tries to identify what is meant but if that doesn't work, you can [use Compatibility Mode](https://pluto-lang.org/docs/Compatibility#compatibility-mode).
+  - Pluto is also compatible with Lua 5.5 bytecode. Pluto can execute Lua bytecode, and most Pluto features generate bytecode compatible with Lua.
+    - There's a small subset of Pluto features which do not generate Lua 5.5 bytecode. This is documented alongside those features, so scripters can vouch to avoid using them when bytecode compatibility is desired.
+  - Pluto has been dropped into large communities, and did not break any existing scripts (with compatibility mode enabled then gradually disabled).
+  - Pluto actively rebases with Lua's main repository. We are not a time-frozen dialect. Initially starting on Lua 5.4, Pluto has successfully performed a gradual rebase onto Lua 5.5.
+
+## Documentation
+
+A detailed documentation of getting started with, tooling for, and the additions and improvements of Pluto can be found [on our website](https://plutolang.github.io/docs/Introduction), which is [open-source as well](https://github.com/PlutoLang/plutolang.github.io).
+
+### Getting Started
+
+You can use Pluto right in your browser [in the interactive playground](https://plutolang.github.io/web/), or find [pre-built binaries](https://github.com/PlutoLang/Pluto/releases) on our releases page. [Read more...](https://pluto-lang.org/docs/Getting%20Started)
+
+### Tooling
+
+- [Pluto Syntax Highlighting](https://github.com/PlutoLang/Syntax-Highlighting)
+- [Pluto Language Server](https://github.com/PlutoLang/pluto-language-server)

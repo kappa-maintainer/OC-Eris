@@ -18,6 +18,10 @@ typedef struct CallInfo CallInfo;
 #include "ltm.h"
 #include "lzio.h"
 
+#ifdef PLUTO_ETL_ENABLE
+#include <chrono>
+#endif
+
 
 /*
 ** Some notes about garbage-collected objects: All objects in Lua must
@@ -279,6 +283,25 @@ struct CallInfo {
 #define getoah(ci)  (((ci)->callstatus & CIST_OAH) ? 1 : 0)
 
 
+class Registry {
+public:
+  lua_State *state;
+
+  // Fetch a string value from the internal registry.
+  inline const char *GetStrKey(const char *key) {
+    if (lua_getfield(state, LUA_REGISTRYINDEX, key)) {
+      return lua_tostring(state, -1);
+    } else return nullptr;
+  }
+
+  // Fetch a boolean value from the internal registry.
+  inline bool GetBoolKey(const char *key) {
+    return lua_getfield(state, LUA_REGISTRYINDEX, key);
+  }
+
+  Registry(lua_State *L) : state(L) {}
+};
+
 /*
 ** 'per thread' state
 */
@@ -309,6 +332,17 @@ struct lua_State {
     int ftransfer;  /* offset of first value transferred */
     int ntransfer;  /* number of values transferred */
   } transferinfo;
+
+  // Lua registry abstration.
+  [[nodiscard]] inline Registry GetReg() {
+      return this;
+  }
+
+#ifdef PLUTO_ETL_ENABLE
+  void checkEtl();
+#else
+  void checkEtl() {}
+#endif
 };
 
 
@@ -368,6 +402,74 @@ typedef struct global_State {
   TString *strcache[STRCACHE_N][STRCACHE_M];  /* cache for strings in API */
   lua_WarnFunction warnf;  /* warning function */
   void *ud_warn;         /* auxiliary data to 'warnf' */
+#ifndef PLUTO_LUA_LINKABLE
+  void* user_data;  /* a pointer to data you, the user, would like to specify */
+
+  /*
+  ** Each non-compatible keyword has 2 bools here: "have_preference" and "preference".
+  ** "have_preference" declares that you would like to overwrite the default enable/disable state of a given keyword,
+  ** and "preference" declares if you would like it to be enabled or disabled.
+  ** For example: If have_preference_switch is true, and preference_switch is false, the 'switch' keyword will be disabled.
+  */
+  bool have_preference_switch : 1;
+  bool preference_switch : 1;
+  bool have_preference_continue : 1;
+  bool preference_continue : 1;
+  bool have_preference_enum : 1;
+  bool preference_enum : 1;
+  bool have_preference_new : 1;
+  bool preference_new : 1;
+  bool have_preference_class : 1;
+  bool preference_class : 1;
+  bool have_preference_parent : 1;
+  bool preference_parent : 1;
+  bool have_preference_export : 1;
+  bool preference_export : 1;
+
+  /*
+  ** Each warning type has a boolean here to determine its default state, which can be overwritten by @pluto_warnings directives.
+  */
+  bool warn_var_shadow : 1;
+  bool warn_global_shadow : 1;
+  bool warn_type_mismatch : 1;
+  bool warn_unreachable_code : 1;
+  bool warn_excessive_arguments : 1;
+  bool warn_deprecated : 1;
+  bool warn_bad_practice : 1;
+  bool warn_possible_typo : 1;
+  bool warn_non_portable_code : 1;
+  bool warn_non_portable_bytecode : 1;
+  bool warn_non_portable_name : 1;
+  bool warn_implicit_global : 1;
+  bool warn_unannotated_fallthrough : 1;
+  bool warn_discarded_return : 1;
+  bool warn_field_shadow : 1;
+  bool warn_unused : 1;
+#endif
+#ifdef PLUTO_ETL_ENABLE
+  std::time_t deadline;  /* internal use only; do not use this in your own code. */
+#endif
+#ifndef PLUTO_NO_DEFAULT_TABLE_METATABLE
+  TValue table_mt;  /* internal use only; do not use this in your own code. */
+#endif
+
+  void setCompatibilityMode(bool b) noexcept {
+    have_preference_switch = true;
+    preference_switch = !b;
+    have_preference_continue = true;
+    preference_continue = !b;
+    have_preference_enum = true;
+    preference_enum = !b;
+    have_preference_new = true;
+    preference_new = !b;
+    have_preference_class = true;
+    preference_class = !b;
+    have_preference_parent = true;
+    preference_parent = !b;
+    have_preference_export = true;
+    preference_export = !b;
+  }
+
   LX mainth;  /* main thread of this state */
 } global_State;
 
@@ -438,7 +540,7 @@ union GCUnion {
 LUAI_FUNC void luaE_setdebt (global_State *g, l_mem debt);
 LUAI_FUNC void luaE_freethread (lua_State *L, lua_State *L1);
 LUAI_FUNC lu_mem luaE_threadsize (lua_State *L);
-LUAI_FUNC CallInfo *luaE_extendCI (lua_State *L);
+LUAI_FUNC CallInfo *luaE_extendCI (lua_State *L, int err);
 LUAI_FUNC void luaE_shrinkCI (lua_State *L);
 LUAI_FUNC void luaE_checkcstack (lua_State *L);
 LUAI_FUNC void luaE_incCstack (lua_State *L);

@@ -98,6 +98,9 @@ static const char *const opnames[] = {
   "ERRNNIL",
   "VARARGPREP",
   "EXTRAARG",
+  // end of lua opcodes
+  "IN",
+  // end of pluto opcodes
   NULL
 };
 

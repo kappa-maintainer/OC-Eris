@@ -1,0 +1,104 @@
+print "Testing preprocessor."
+
+-- Multi-line
+$alias seq = "a"  \
+             ..   \
+             "b"  \
+             ..   \
+             "c"
+assert(seq == "abc")
+
+-- Function-like
+$alias add(a, b) = a + b
+assert(add(1, 2) == 3)
+
+
+assert(load[[
+    $alias done = end \
+                  end
+    $alias msg = "hello"
+
+    function f() do
+        return msg
+    done
+
+    return f()
+]]() == "hello")
+
+assert(load[[
+    $alias add(a, b) = a + b
+
+    return add(1, 2)
+]]() == 3)
+
+assert(load[[
+    $alias please = 
+
+    if true please do
+        return "hello"
+    end
+]]() == "hello")
+
+assert(load[[
+    $alias in_the_case_that = \
+        if
+
+    in_the_case_that true then
+        return "hello"
+    end
+]]() == "hello")
+
+assert(select("#", load[[
+    $alias add(a, b) = 
+
+    return add(1, 2)
+]]()) == 0)
+
+assert(load[[
+    $alias add(a, b) = \
+        a + b
+
+    return a + b
+]])
+
+assert(load[[
+    $alias def(name, val) = local name = val
+    def(FOO, 1)
+    return FOO
+]]() == 1)
+
+-- Multiple pasted tokens
+load[[$alias defer(what) = local __defer <close> = setmetatable({}, { __close = function() what end })
+
+local block_closed = false
+do
+    assert(not block_closed)
+    defer(block_closed = true)
+    assert(not block_closed)
+end
+assert(block_closed)
+]]()
+
+-- Aliases can reference other aliases
+do
+    local a, b = load[[
+        $alias a = "hello"
+        $alias b = a, "world"
+        return b
+    ]]()
+    assert(a == "hello")
+    assert(b == "world")
+end
+
+-- but self-referencing aliases should not be resolved
+assert(load[[
+    $alias r = r
+    local r = 69
+    return r
+]]() == 69)
+assert(load[[
+    $alias r(x) = r = x
+    r(69)
+    return _G["r"]
+]]() == 69)
+
