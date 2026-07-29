@@ -81,7 +81,9 @@ LUAMOD_API int (luaopen_base64)	(lua_State *L);
 
 #define PLUTO_ASSERTLIBNAME "assert"
 #define PLUTO_ASSERTLIBK (PLUTO_BASE64LIBK << 1)
+#ifndef PLUTO_NO_GLOBAL_CONFLICTING_LIBS
 LUAMOD_API int (luaopen_assert)	(lua_State *L);
+#endif
 
 #define PLUTO_VECTOR3LIBNAME "vector3"
 #define PLUTO_VECTOR3LIBK (PLUTO_ASSERTLIBK << 1)
@@ -158,7 +160,9 @@ namespace Pluto {
   extern const PreloadedLibrary preloaded_json;
   extern const PreloadedLibrary preloaded_base32;
   extern const PreloadedLibrary preloaded_base64;
+#ifndef PLUTO_NO_GLOBAL_CONFLICTING_LIBS
   extern const PreloadedLibrary preloaded_assert;
+#endif
   extern const PreloadedLibrary preloaded_vector3;
   extern const PreloadedLibrary preloaded_url;
 #ifndef PLUTO_NO_UNSANDBOXABLE_LIBS
@@ -189,7 +193,9 @@ namespace Pluto {
     &preloaded_json,
     &preloaded_base32,
     &preloaded_base64,
+#ifndef PLUTO_NO_GLOBAL_CONFLICTING_LIBS
     &preloaded_assert,
+#endif
     &preloaded_vector3,
     &preloaded_url,
 #ifndef PLUTO_NO_UNSANDBOXABLE_LIBS

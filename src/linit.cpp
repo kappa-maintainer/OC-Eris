@@ -51,7 +51,9 @@ static const luaL_Reg stdlibs[] = {
   {PLUTO_JSONLIBNAME, luaopen_json},
   {PLUTO_BASE32LIBNAME, luaopen_base32},
   {PLUTO_BASE64LIBNAME, luaopen_base64},
+#ifndef PLUTO_NO_GLOBAL_CONFLICTING_LIBS
   {PLUTO_ASSERTLIBNAME, luaopen_assert},
+#endif
   {PLUTO_VECTOR3LIBNAME, luaopen_vector3},
   {PLUTO_URLLIBNAME, luaopen_url},
 #ifndef PLUTO_NO_UNSANDBOXABLE_LIBS

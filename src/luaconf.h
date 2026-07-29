@@ -787,6 +787,17 @@
 // files must also be left out of the build.
 //#define PLUTO_NO_UNSANDBOXABLE_LIBS
 
+// If defined, Pluto omits the extension libraries whose name collides with a
+// standard global: currently only 'assert'. Reached through require, which is
+// how Pluto itself offers them, the collision does not arise. An embedder that
+// exposes libraries as globals instead would shadow the standard function, and
+// for assert the replacement is not a superset: its __call returns nothing on
+// success where the standard assert returns its arguments, so the common
+// 'local x = assert(f())' would silently yield nil. It also reformats error
+// messages and requires the debug library to be open. The corresponding source
+// files must also be left out of the build.
+//#define PLUTO_NO_GLOBAL_CONFLICTING_LIBS
+
 // If defined, Pluto will add table.isfrozen & table.freeze to the standard library,
 // lua_freezetable, lua_istablefrozen, & lua_erriffrozen to the C API,
 // and all the hooks required to make it work. Note that coverage may not be perfect.
