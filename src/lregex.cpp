@@ -110,8 +110,15 @@ static int regex_substitute (lua_State *L) {
 
 /*
 ** Serialize the pattern in its '/pattern/flags' form, which is what regex_new
-** accepts back. Soup normalizes as it unparses, so the text may differ from what
-** the script wrote, but the round trip is stable and preserves the flags.
+** accepts back.
+**
+** Soup normalizes as it unparses, so the text is not necessarily what the script
+** wrote: \d becomes [0-9], an unnamed group gains an explicit marker, and a
+** case-insensitive literal is folded into a character class. Only the semantics
+** are preserved, deliberately. Keeping the original text would mean storing it
+** alongside the compiled form purely so tostring() reads back unchanged, which
+** is not worth the extra state; matching behaviour is identical either way and
+** the round trip is stable, so persisting twice yields the same string.
 */
 static int regex_dump (lua_State *L) {
   pluto_pushstring(L, checkregex(L, 1)->toFullString());
