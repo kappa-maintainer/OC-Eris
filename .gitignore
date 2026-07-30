@@ -15,6 +15,9 @@ int/
 out/
 Pluto.vcxproj.user
 
+# pi
+.pi*
+
 # Linux Executables
 src/pluto
 src/plutoc
