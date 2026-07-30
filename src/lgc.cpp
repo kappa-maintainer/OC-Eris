@@ -379,6 +379,13 @@ static void markmt (global_State *g) {
   int i;
   for (i=0; i < LUA_NUMTYPES; i++)
     markobjectN(g, g->mt[i]);
+#ifndef PLUTO_NO_DEFAULT_TABLE_METATABLE
+  /* The shared default metatable handed to every new table by
+  ** luaH_initmetatable lives only here, so it has to be treated as a root.
+  ** Without this the collector frees it while tables still point at it, and
+  ** the next metamethod lookup reads a dangling Table. */
+  markvalue(g, &g->table_mt);
+#endif
 }
 
 
